@@ -6,45 +6,65 @@ import os
 import string
 import sys
 import time
-import boto3                                
-import datetime
+import boto3                                             
+from elasticsearch import Elasticsearch   
+import urllib.request  
+
 
 """
-Read events from SQS DLQ and stores them in S3.
+Read AWS events from EventBridge and ingest them into Elasticsearch.
 
 Required environment variables:
 SNS_TOPIC_ARN_ALERT: The topic to send exceptions.   
 
-S3 target environment variables:
-BUCKET_NAME: The name of the bucket. 
-BUCKET_PATH: The path of the bucket. 
+ElasticSearch target environment variables:
+ELASTICSEARCH_URI: The URI of the Elasticsearch domain where data should be streamed.
 
 """
-
-
-s3_client = None                        # S3 client - used as target                                             
+                          
+es_client = None                        # ElasticSearch client - used as target                                         
 sns_client = boto3.client('sns')        # SNS client - for exception alerting purposes
                                   
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-
-def load_data_s3(filename):
-    """Load data into S3."""
+def get_es_client():
+    """Return an Elasticsearch client."""
     
-    global s3_client
+    global es_client
+    
+    if es_client is None:
+        logger.debug('Creating Elasticsearch client Amazon root CA')
+        """
+            Important:
+            Use the following method if you Lambda has access to the Internet, 
+            otherwise include the certificate within the package. 
 
-    if s3_client is None:
-        logger.debug('Creating new S3 client.')
-        s3_client = boto3.client('s3')  
+            Comment following line if certificate is loaded it as part of the function. 
+        """
+        get_es_certificate()                                 
 
+        try:
+            es_uri = os.environ['ELASTICSEARCH_URI']
+            es_client = Elasticsearch([es_uri],
+                                      use_ssl=True,
+                                      ca_certs='/tmp/AmazonRootCA1.pem')
+        except Exception as ex:
+            logger.error('Failed to create new Elasticsearch client: {}'.format(ex))
+            send_sns_alert(str(ex))
+            raise
+
+    return es_client
+
+
+def get_es_certificate():                           
+    """Gets the certificate to connect to ES."""
     try:
-        logger.debug('Loading batch to S3.')
-        response = s3_client.upload_file('/tmp/'+filename, os.environ['BUCKET_NAME'], str(os.environ['BUCKET_PATH']) 
-            + '/' + filename)
-
+        logger.debug('Getting Amazon Root CA certificate.')
+        url = 'https://www.amazontrust.com/repository/AmazonRootCA1.pem'
+        urllib.request.urlretrieve(url, '/tmp/AmazonRootCA1.pem')
     except Exception as ex:
-        logger.error('Exception in loading data to s3 message: {}'.format(ex))
+        logger.error('Failed to download certificate to connect to ES: {}'.format(ex))
         send_sns_alert(str(ex))
         raise
 
@@ -56,7 +76,7 @@ def send_sns_alert(message):
         response = sns_client.publish(
             TopicArn=os.environ['SNS_TOPIC_ARN_ALERT'],
             Message=message,
-            Subject='DLQ processing Alarm',
+            Subject='EventBridge to Elasticseach Alarm',
             MessageStructure='default'
         )
     except Exception as ex:
@@ -66,38 +86,31 @@ def send_sns_alert(message):
 
 
 def lambda_handler(event, context):
-    """Read any new events from DocumentDB and apply them to an streaming/datastore endpoint."""
+    """Read AWS events from EventBridge and ingest them into Elasticsearch."""
     
-    filename = None
-    fobj = None
-
     try:
-        
-        filename = 'dlq' + '-' + datetime.datetime.now().strftime("%s")
-        fobj = open('/tmp/'+filename, 'w')
-        logger.debug('S3 client set up.')
+        # Create ES client
+        es_client = get_es_client()
+        logger.debug('ES client set up.')
 
+        # Publish event to ES 
         for record in event['Records']:
-            fobj.write(json.dumps(record['body']))
-            fobj.write("\n")
-                      
+            doc = json.loads(record['body'])
+            print(type(doc))
+            print('source')
+            print(doc['source'])
+            print('id')
+            print(doc['id'])
+            es_client.index(index=doc['source'],id=doc['id'],body=doc)     
+
     except Exception as ex:
-        logger.error('Exception in executing ingestion to S3: {}'.format(ex))
+        logger.error('Exception in executing ingestion: {}'.format(ex))
         send_sns_alert(str(ex))
         raise
 
     else:
         
-        #Saves file to S3
-        fobj.close()
-        load_data_s3(filename)
-
         return {
             'statusCode': 200,
             'body': json.dumps('Success!')
         }
-
-    finally:
-
-        # S3 - close temp object
-        fobj.close()
