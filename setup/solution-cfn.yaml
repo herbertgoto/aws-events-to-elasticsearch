@@ -49,6 +49,82 @@ Resources:
     Properties: 
       AllowUnauthenticatedIdentities: True
       IdentityPoolName: !Ref IdentityPoolName
+      AllowClassicFlow: False
+
+  ESIdentityPoolRolesAtt:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment 
+    DependsOn: 
+    - ESCognitoIdentityPool
+    - AuthenticatedRole
+    - UnAuthenticatedRole
+    Properties: 
+      IdentityPoolId: !Ref ESCognitoIdentityPool
+      Roles: 
+        "authenticated": !GetAtt AuthenticatedRole.Arn 
+        "unauthenticated": !GetAtt UnAuthenticatedRole.Arn 
+
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Federated:
+                - cognito-identity.amazonaws.com
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref ESCognitoIdentityPool
+              ForAnyValue:StringLike:
+                "cognito-identity.amazonaws.com:amr": 'authenticated'
+      Policies:
+        - PolicyName: AuthenticatedPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - mobileanalytics:PutEvents
+                  - cognito-sync:*
+                  - cognito-identity:*
+                Resource: '*'
+      Path:
+        Fn::Sub: /
+
+  UnAuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Federated:
+                - cognito-identity.amazonaws.com
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref ESCognitoIdentityPool
+              ForAnyValue:StringLike:
+                "cognito-identity.amazonaws.com:amr": 'unauthenticated'
+      Policies:
+        - PolicyName: AuthenticatedPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - mobileanalytics:PutEvents
+                  - cognito-sync:*
+                Resource: '*'
+      Path:
+        Fn::Sub: /
 
 #  EventTopicPolicy:
 #    Type: 'AWS::SNS::TopicPolicy'
