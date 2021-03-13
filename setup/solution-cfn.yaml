@@ -12,16 +12,30 @@ Parameters:
     Type: String
     Description: The name for the domain of the Cognito User Pool.
 
+  IdentityPoolName:
+    Type: String
+    Description: The name for the Cognito Identity Pool.
+
 Resources:
 
   ESCognitoUserPool:
     Type: AWS::Cognito::UserPool
     Properties: 
+      AutoVerifiedAttributes: 
+        - email
+      AccountRecoverySetting: 
+        RecoveryMechanisms: 
+          - Name: verified_email
+            Priority: 1
+          - Name: verified_phone_number
+            Priority: 2
       UsernameAttributes: 
         - email
       UsernameConfiguration: 
         CaseSensitive: False
       UserPoolName: !Ref UserPoolName
+      VerificationMessageTemplate: 
+        DefaultEmailOption: CONFIRM_WITH_CODE
 
   ESCognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -29,6 +43,12 @@ Resources:
     Properties: 
       Domain: !Ref UserPoolDomain
       UserPoolId: !Ref ESCognitoUserPool
+
+  ESCognitoIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties: 
+      AllowUnauthenticatedIdentities: True
+      IdentityPoolName: !Ref IdentityPoolName
 
 #  EventTopicPolicy:
 #    Type: 'AWS::SNS::TopicPolicy'
