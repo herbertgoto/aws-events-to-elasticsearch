@@ -237,15 +237,19 @@ Resources:
     DeletionPolicy: Retain
     
 Outputs:
-  #VpcId:
-  #  Value: !Ref VPC
   #ElasticsearchDomainArn:
   #  Value: !GetAtt ElasticsearchDomain.Arn
   #ElasticsearchDomainEndpoint:
   #  Value: !GetAtt ElasticsearchDomain.DomainEndpoint
-  #ElasticsearchSecurityGroup:
-  #  Value: !Ref ElasticSearchSecurityGroup
   #EventBridgeRule:
   #  Value: !Ref ScheduledRule
   S3BucketName:
     Value: !Ref S3DLQ
+  UnAuthenticatedRole:
+    Value: !GetAtt UnAuthenticatedRole.Arn
+  AuthenticatedRole:
+    Value: !GetAtt AuthenticatedRole.Arn
+  ESCognitoUserPool:
+    Value: !GetAtt ESCognitoUserPool.Arn
+  ESCognitoIdentityPool:
+    Value: !Ref ESCognitoIdentityPool
