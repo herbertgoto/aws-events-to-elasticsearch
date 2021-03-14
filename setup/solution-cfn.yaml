@@ -16,6 +16,10 @@ Parameters:
     Type: String
     Description: The name for the Cognito Identity Pool.
 
+  ElasticSearchDomainName:
+    Type: String
+    Description: The name for the Amazon Elasticsearch Domain.
+
 Resources:
 
   ESCognitoUserPool:
@@ -182,65 +186,96 @@ Resources:
 #      Path:
 #        Fn::Sub: /
 
-#  ElasticSearchSecurityGroup:
-#    Type: AWS::EC2::SecurityGroup
-#    Properties: 
-#      GroupDescription: Amazon DocumentDB Security Group
-#      VpcId: !Ref VPC
-#      SecurityGroupIngress:
-#         - IpProtocol: tcp
-#           CidrIp: 10.0.0.0/16
-#           FromPort: 443
-#           ToPort: 443
+  CognitoAccessForAmazonES:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Amazon Elasticsearch role for Kibana authentication.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - es.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonESCognitoAccess
+      Path:
+        Fn::Sub: /service-role/
 
-#  ElasticsearchSLR:
-#    Type: 'AWS::IAM::ServiceLinkedRole'
-#    Properties:
-#      AWSServiceName: es.amazonaws.com
+  ElasticsearchSLR:
+    Type: 'AWS::IAM::ServiceLinkedRole'
+    Properties:
+      AWSServiceName: es.amazonaws.com
 
-#  ElasticsearchDomain:
-#    Type: AWS::Elasticsearch::Domain
-#    DependsOn: ElasticsearchSLR
-#    Properties:
-#      ElasticsearchVersion: "7.4"
-#      ElasticsearchClusterConfig:
-#        InstanceCount: "1"
-#        InstanceType: "r5.large.elasticsearch"
-#      EBSOptions:
-#        EBSEnabled: true
-#        Iops: 0
-#        VolumeSize: 20
-#        VolumeType: "gp2"
-#      AccessPolicies:
-#        Version: '2012-10-17'
-#        Statement:
-#          - Effect: Allow
-#            Principal:
-#              AWS: '*'
-#            Action: 'es:*'
-#            Resource: 
-#              !Join
-#                - '' 
-#                - - 'arn:aws:es:'
-#                  - !Ref "AWS::Region"
-#                  - ':'
-#                  - !Ref "AWS::AccountId"
-#                  - ':domain/*/*'
-#      VPCOptions:
-#        SubnetIds:
-#          - Ref: PrivateSubnetOne
-#        SecurityGroupIds:
-#          - Ref: ElasticSearchSecurityGroup
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    DependsOn: 
+    - ElasticsearchSLR
+    - ESCognitoUserPool
+    - ESIdentityPoolRolesAtt
+    Properties:
+      DomainName: !Ref ElasticSearchDomainName
+      ElasticsearchVersion: '7.9'
+      ElasticsearchClusterConfig:
+        DedicatedMasterCount: 3
+        DedicatedMasterEnabled: True
+        DedicatedMasterType: 'c5.large.elasticsearch'
+        InstanceCount: 3
+        InstanceType: 'r5.large.elasticsearch'
+        ZoneAwarenessEnabled: True
+        ZoneAwarenessConfig:
+          AvailabilityZoneCount: 3
+      EBSOptions:
+        EBSEnabled: true
+        Iops: 0
+        VolumeSize: 50
+        VolumeType: 'gp2'
+      DomainEndpointOptions:
+        EnforceHTTPS: True
+      EncryptionAtRestOptions:
+        Enabled: True
+      NodeToNodeEncryptionOptions:
+         Enabled: True
+      CognitoOptions:
+        Enabled: True
+        IdentityPoolId: !Ref ESCognitoIdentityPool
+        RoleArn: !GetAtt CognitoAccessForAmazonES.Arn
+        UserPoolId: !Ref ESCognitoUserPool
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: 
+                !Join
+                - '' 
+                - - 'arn:aws:iam::'
+                  - !Ref "AWS::AccountId"
+                  - ':'
+                  - 'role/'
+                  - !Ref AuthenticatedRole
+            Action: 'es:ESHttp*'
+            Resource: 
+              !Join
+                - '' 
+                - - 'arn:aws:es:'
+                  - !Ref "AWS::Region"
+                  - ':'
+                  - !Ref "AWS::AccountId"
+                  - ':domain/*/*'
   
   S3DLQ:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     
 Outputs:
-  #ElasticsearchDomainArn:
-  #  Value: !GetAtt ElasticsearchDomain.Arn
-  #ElasticsearchDomainEndpoint:
-  #  Value: !GetAtt ElasticsearchDomain.DomainEndpoint
+  ElasticsearchDomainArn:
+    Value: !GetAtt ElasticsearchDomain.Arn
+  ElasticsearchDomainEndpoint:
+    Value: !GetAtt ElasticsearchDomain.DomainEndpoint
   #EventBridgeRule:
   #  Value: !Ref ScheduledRule
   S3BucketName:
