@@ -7,8 +7,9 @@ import string
 import sys
 import time
 import boto3                                             
-from elasticsearch import Elasticsearch   
+from elasticsearch import Elasticsearch, RequestsHttpConnection   
 import urllib.request  
+from requests_aws4auth import AWS4Auth
 
 
 """
@@ -21,12 +22,17 @@ ElasticSearch target environment variables:
 ELASTICSEARCH_URI: The URI of the Elasticsearch domain where data should be streamed.
 
 """
-                          
+
+
 es_client = None                        # ElasticSearch client - used as target                                         
 sns_client = boto3.client('sns')        # SNS client - for exception alerting purposes
                                   
-logger = logging.getLogger()
+logger = logging.getLogger()            #Logging
 logger.setLevel(logging.DEBUG)
+
+credentials = boto3.Session().get_credentials()     # HTTP Request Signing
+awsauth = AWS4Auth(credentials.access_key, credentials.secret_key, os.environ['AWS_REGION'], 'es', session_token=credentials.token)
+
 
 def get_es_client():
     """Return an Elasticsearch client."""
@@ -45,9 +51,13 @@ def get_es_client():
         get_es_certificate()                                 
 
         try:
+            
             es_uri = os.environ['ELASTICSEARCH_URI']
             es_client = Elasticsearch([es_uri],
+                                      http_auth = awsauth,
                                       use_ssl=True,
+                                      verify_certs = True,
+                                      connection_class = RequestsHttpConnection,
                                       ca_certs='/tmp/AmazonRootCA1.pem')
         except Exception as ex:
             logger.error('Failed to create new Elasticsearch client: {}'.format(ex))
@@ -96,11 +106,6 @@ def lambda_handler(event, context):
         # Publish event to ES 
         for record in event['Records']:
             doc = json.loads(record['body'])
-            print(type(doc))
-            print('source')
-            print(doc['source'])
-            print('id')
-            print(doc['id'])
             es_client.index(index=doc['source'],id=doc['id'],body=doc)     
 
     except Exception as ex:
