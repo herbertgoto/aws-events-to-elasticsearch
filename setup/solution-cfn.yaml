@@ -4,21 +4,13 @@ Description: This stack deploys the AWS events health monitor
 
 Parameters:
 
-  UserPoolName:
-    Type: String
-    Description: The name for the Cognito User Pool.
-
   UserPoolDomain:
     Type: String
     Description: The name for the domain of the Cognito User Pool.
 
-  IdentityPoolName:
+  LambdaCodeBucket:
     Type: String
-    Description: The name for the Cognito Identity Pool.
-
-  ElasticSearchDomainName:
-    Type: String
-    Description: The name for the Amazon Elasticsearch Domain.
+    Description: The name of the bucket where Lambda Code resides. 
 
 Resources:
 
@@ -37,7 +29,6 @@ Resources:
         - email
       UsernameConfiguration: 
         CaseSensitive: False
-      UserPoolName: !Ref UserPoolName
       VerificationMessageTemplate: 
         DefaultEmailOption: CONFIRM_WITH_CODE
 
@@ -52,7 +43,6 @@ Resources:
     Type: AWS::Cognito::IdentityPool
     Properties: 
       AllowUnauthenticatedIdentities: True
-      IdentityPoolName: !Ref IdentityPoolName
       AllowClassicFlow: False
 
   ESIdentityPoolRolesAtt:
@@ -130,61 +120,182 @@ Resources:
       Path:
         Fn::Sub: /
 
-#  EventTopicPolicy:
-#    Type: 'AWS::SNS::TopicPolicy'
-#    Properties:
-#      PolicyDocument:
-#        Statement:
-#          - Effect: Allow
-#            Principal:
-#              Service: events.amazonaws.com
-#            Action: 'sns:Publish'
-#            Resource: '*'
-#      Topics:
-#        - !Ref SNSTopicTrigger
+  AWSEventsRule: 
+    Type: AWS::Events::Rule
+    DependsOn: EventsQueue
+    Properties: 
+      Description: "Rule to process AWS events"
+      EventPattern: "rate(2 minutes)"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - EventsQueue
+              - Arn
+          Id: "TargetSQS"
 
-#  LambdaChangeStreamsRole:
-#    Type: AWS::IAM::Role
-#    Properties:
-#      AssumeRolePolicyDocument:
-#        Version: "2012-10-17"
-#        Statement:
-#          -
-#            Effect: Allow
-#            Principal:
-#              Service:
-#                - lambda.amazonaws.com
-#            Action:
-#              - sts:AssumeRole
-#      ManagedPolicyArns:
-#        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-#      Policies:
-#        - PolicyName: PublishSNS
-#          PolicyDocument:
-#            Version: '2012-10-17'
-#            Statement:
-#              - Effect: Allow
-#                Action:
-#                  - sns:Publish
-#                Resource: !Ref SNSTopicAlert
-#        - PolicyName: SecretsManager
-#          PolicyDocument:
-#            Version: '2012-10-17'
-#            Statement:
-#              - Effect: Allow
-#                Action:
-#                  - secretsmanager:GetSecretValue
-#                Resource: !Ref DocDBSecret
-#        - PolicyName: S3Access
-#          PolicyDocument:
-#            Version: '2012-10-17'
-#            Statement:
-#              - Effect: Allow
-#                Action:
-#                  - s3:GetObject
-#                Resource: 'arn:aws:s3:::rds-downloads/rds-combined-ca-bundle.pem'
-#      Path:
-#        Fn::Sub: /
+  #EventTopicPolicy:
+  #Type: 'AWS::SNS::TopicPolicy'
+  #Properties:
+  #  PolicyDocument:
+  #    Statement:
+  #      - Effect: Allow
+  #        Principal:
+  #          Service: events.amazonaws.com
+  #        Action: 'sns:Publish'
+  #        Resource: '*'
+  #  Topics:
+  #    - !Ref MySNSTopic
+
+  SNSTopicAlert:
+    Type: AWS::SNS::Topic
+
+  DeathLetterQueue: 
+    Type: AWS::SQS::Queue
+
+  EventsQueue: 
+    Type: AWS::SQS::Queue
+    DependsOn: DeathLetterQueue
+    Properties:
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeathLetterQueue.Arn
+        maxReceiveCount: 10
+
+  LambdaDLQToS3Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: PublishSNS
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref SNSTopicAlert
+        - PolicyName: ReadSQS
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt DeathLetterQueue.Arn
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !GetAtt S3DLQ.Arn
+      Path:
+        Fn::Sub: /
+
+  LambdaESEventsIngesterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: PublishSNS
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref SNSTopicAlert
+        - PolicyName: ReadSQS
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt EventsQueue.Arn
+      Path:
+        Fn::Sub: /
+
+  DQLLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: dlqLambdaFunction.zip
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaDLQToS3Role.Arn 
+      Runtime: python3.7
+      Description: "AWS Lambda used to send un-processed events in a DLQ to S3"
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref S3DLQ
+          BUCKET_PATH: dlq 
+          SNS_TOPIC_ARN_ALERT: !Ref SNSTopicAlert
+      FunctionName: events-processing-dlq-to-s3
+      MemorySize: 128
+      Timeout: 15
+
+  EventProcessingLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket 
+        S3Key: dlqLambdaFunction.zip
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaESEventsIngesterRole.Arn 
+      Runtime: python3.7
+      Description: "AWS Lambda used to ingest AWS Events from EventBridge to Amazon ElasticSearch"
+      Environment:
+        Variables:
+          BUCKET_NAME: !GetAtt ElasticsearchDomain.DomainEndpoint
+          SNS_TOPIC_ARN_ALERT: !Ref SNSTopicAlert
+      FunctionName: events-processing-to-aes
+      MemorySize: 128
+      Timeout: 15
+  
+  DLQTriggerLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt DQLLambdaFunction.Arn
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt DeathLetterQueue.Arn
+
+  QueueTriggerEventsLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt EventProcessingLambdaFunction.Arn
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt EventsQueue.Arn
 
   CognitoAccessForAmazonES:
     Type: AWS::IAM::Role
@@ -217,7 +328,6 @@ Resources:
     - ESCognitoUserPool
     - ESIdentityPoolRolesAtt
     Properties:
-      DomainName: !Ref ElasticSearchDomainName
       ElasticsearchVersion: '7.9'
       ElasticsearchClusterConfig:
         DedicatedMasterCount: 3
@@ -284,7 +394,13 @@ Outputs:
     Value: !GetAtt UnAuthenticatedRole.Arn
   AuthenticatedRole:
     Value: !GetAtt AuthenticatedRole.Arn
+  LambdaDLQToS3Role:
+    Value: !GetAtt LambdaDLQToS3Role.Arn
+  LambdaESEventsIngesterRole:
+    Value: !GetAtt LambdaESEventsIngesterRole.Arn
   ESCognitoUserPool:
     Value: !GetAtt ESCognitoUserPool.Arn
   ESCognitoIdentityPool:
     Value: !Ref ESCognitoIdentityPool
+  SNSTopicAlert:
+    Value: !Ref SNSTopicAlert
