@@ -28,7 +28,6 @@ then
     cd dlqLambda/lib/python*/site-packages/
     pip3 install -r requirements.txt 
     deactivate
-    mv ../dist-packages/* .
     zip -r9 dlqLambdaFunction.zip .
     aws s3 cp dlqLambdaFunction.zip s3://$BUCKET_NAME
 
@@ -45,7 +44,6 @@ then
     cd eventsLambda/lib/python*/site-packages/
     pip3 install -r requirements.txt 
     deactivate
-    mv ../dist-packages/* .
     zip -r9 eventsLambdaFunction.zip .
     aws s3 cp eventsLambdaFunction.zip s3://$BUCKET_NAME
 
