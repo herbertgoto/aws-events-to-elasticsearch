@@ -16,7 +16,7 @@ You can run these steps from your own terminal. However, for the sake of simplic
     ```
 4. Create an environment variable for your bucket name. 
     ```
-        export BUCKET_NAME=<Bucket name>
+        export BUCKET_NAME=<Enter your bucket name>
         echo "export BUCKET_NAME=${BUCKET_NAME}" >> ~/.bash_profile
     ```
 5. Clone this repo
@@ -28,19 +28,21 @@ You can run these steps from your own terminal. However, for the sake of simplic
         chmod 700 aws-events-to-elasticsearch/setup/setup.sh 
         aws-events-to-elasticsearch/setup/setup.sh
     ```
-7. Create an environment variable with the n
-ames of the AWS services you want to observe. A full list can be found in .
+7. Create an environment variable with the code bindings for the AWS services you want to observe - __[Tutorial: Download Code Bindings for Events using the EventBridge Schema Registry](https://docs.aws.amazon.com/eventbridge/latest/userguide/eventbridge-tutorial-schema-download-binding.html)__
     ```
-        export AWS_SERVICES="aws.<service_1>","aws.<service_2>","aws.<service_3>"
+        export AWS_SERVICES='"aws.<Enter AWS service 1 code binding>"','"aws.<Enter AWS service 1 code binding>"'
         echo "export AWS_SERVICES=${AWS_SERVICES}" >> ~/.bash_profile
     ```
-8. Run the AWS Cloudformation template
+8. Run the AWS Cloudformation template. For this you have to define an unique __[User Pool Domain](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-assign-domain.html)__
     ```
-        export AWS_SERVICES="aws.<service_1>","aws.<service_2>","aws.<service_3>"
-        echo "export AWS_SERVICES=${AWS_SERVICES}" >> ~/.bash_profile
+        aws cloudformation deploy --template-file aws-events-to-elasticsearch/setup/solution-cfn.yaml \
+        --stack-name <Enter stack name> --capabilities CAPABILITY_IAM \
+        --parameter-overrides UserPoolDomain=<Enter name for the user pool domain> \
+        LambdaCodeBucket=$BUCKET_NAME AWSServices=$AWS_SERVICES
     ```
 9. Create an AWS Cognito user with a temporal password to access Kibana. 
     ```
-        export AWS_SERVICES="aws.<service_1>","aws.<service_2>","aws.<service_3>"
-        echo "export AWS_SERVICES=${AWS_SERVICES}" >> ~/.bash_profile
+        aws cognito-idp admin-create-user --username <Enter email address> \
+        --temporary-password <Enter temporary password> \
+        --user-pool-id $(aws cloudformation describe-stacks --stack-name <Enter stack name> | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ESCognitoUserPool) 
     ```

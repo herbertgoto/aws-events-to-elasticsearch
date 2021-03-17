@@ -405,8 +405,8 @@ Outputs:
     Value: !GetAtt LambdaDLQToS3Role.Arn
   LambdaESEventsIngesterRole:
     Value: !GetAtt LambdaESEventsIngesterRole.Arn
-  ESCognitoUserPool:
-    Value: !GetAtt ESCognitoUserPool.Arn
+  ESCognitoUserPoolId:
+    Value: !Ref ESCognitoUserPool
   ESCognitoIdentityPool:
     Value: !Ref ESCognitoIdentityPool
   SNSTopicAlert:
