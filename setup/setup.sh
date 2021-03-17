@@ -16,16 +16,10 @@ then
     pip3 install awscli --upgrade --user
     source ~/.bash_profile
 
-    echo 'Setting up the AWS REGION'
-    # Setting up the AWS REGION
-    echo "export AWS_REGION=${AWS_REGION}" >> ~/.bash_profile
-    aws configure set default.region ${AWS_REGION}
-
     echo 'Packaging and uploading lambda code to send dlq messages to S3'
     # Upload Lambda Code
-    cd..
     mkdir app-dql-to-s3
-    cp dlq-to-s3-function/* app-dql-to-s3/
+    cp aws-events-to-elasticsearch/dlq-to-s3-function/* app-dql-to-s3/
     cd app-dql-to-s3
     python -m venv dlqLambda
     source dlqLambda/bin/activate
@@ -40,9 +34,9 @@ then
 
     echo 'Packaging and uploading lambda code to send dlq messages to S3'
     # Upload Lambda Code
-    cd..
+    cd ~
     mkdir app-awsevents-to-aes
-    cp events-ingester-function/* app-awsevents-to-aes/
+    cp aws-events-to-elasticsearch/events-ingester-function/* app-awsevents-to-aes/
     cd app-awsevents-to-aes
     python -m venv eventsLambda
     source eventsLambda/bin/activate

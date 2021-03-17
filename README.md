@@ -21,14 +21,15 @@ You can run these steps from your own terminal. However, for the sake of simplic
     ```
 5. Clone this repo
     ```
-        chmod 700 startup.sh
+        git clone https://github.com/herbertgoto/aws-events-to-elasticsearch.git
     ```
 6. Execute the setup code to update the workspace libraries and package and upload code to S3.
     ```
-        chmod 700 startup.sh
-        ./startup.sh
+        chmod 700 aws-events-to-elasticsearch/setup/setup.sh 
+        aws-events-to-elasticsearch/setup/setup.sh
     ```
-7. Create an environment variable with the names of the AWS services you want to observe. A full list can be found in .
+7. Create an environment variable with the n
+ames of the AWS services you want to observe. A full list can be found in .
     ```
         export AWS_SERVICES="aws.<service_1>","aws.<service_2>","aws.<service_3>"
         echo "export AWS_SERVICES=${AWS_SERVICES}" >> ~/.bash_profile
