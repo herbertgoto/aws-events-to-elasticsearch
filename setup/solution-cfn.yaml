@@ -125,7 +125,9 @@ Resources:
     DependsOn: EventsQueue
     Properties: 
       Description: "Rule to process AWS events"
-      EventPattern: "rate(2 minutes)"
+      EventPattern: 
+            source: 
+              - aws.rds,aws.ecs
       State: "ENABLED"
       Targets: 
         - 
@@ -135,18 +137,18 @@ Resources:
               - Arn
           Id: "TargetSQS"
 
-  #EventTopicPolicy:
-  #Type: 'AWS::SNS::TopicPolicy'
-  #Properties:
-  #  PolicyDocument:
-  #    Statement:
-  #      - Effect: Allow
-  #        Principal:
-  #          Service: events.amazonaws.com
-  #        Action: 'sns:Publish'
-  #        Resource: '*'
-  #  Topics:
-  #    - !Ref MySNSTopic
+  EventQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: '*'
+      Queues: 
+        - !Ref EventsQueue
 
   SNSTopicAlert:
     Type: AWS::SNS::Topic
@@ -268,34 +270,35 @@ Resources:
     Properties:
       Code:
         S3Bucket: !Ref LambdaCodeBucket 
-        S3Key: dlqLambdaFunction.zip
+        S3Key: eventsLambdaFunction.zip
       Handler: lambda_function.lambda_handler
       Role: !GetAtt LambdaESEventsIngesterRole.Arn 
       Runtime: python3.7
       Description: "AWS Lambda used to ingest AWS Events from EventBridge to Amazon ElasticSearch"
       Environment:
         Variables:
-          BUCKET_NAME: !GetAtt ElasticsearchDomain.DomainEndpoint
+          ELASTICSEARCH_URI: 
+            !Join
+                - '' 
+                - - 'https://'
+                  - !GetAtt ElasticsearchDomain.DomainEndpoint
+                  - ':443'
           SNS_TOPIC_ARN_ALERT: !Ref SNSTopicAlert
       FunctionName: events-processing-to-aes
       MemorySize: 128
       Timeout: 15
   
   DLQTriggerLambda:
-    Type: AWS::Lambda::Permission
+    Type: AWS::Lambda::EventSourceMapping
     Properties:
-      Action: lambda:InvokeFunction
       FunctionName: !GetAtt DQLLambdaFunction.Arn
-      Principal: sqs.amazonaws.com
-      SourceArn: !GetAtt DeathLetterQueue.Arn
+      EventSourceArn: !GetAtt DeathLetterQueue.Arn
 
   QueueTriggerEventsLambda:
-    Type: AWS::Lambda::Permission
+    Type: AWS::Lambda::EventSourceMapping
     Properties:
-      Action: lambda:InvokeFunction
       FunctionName: !GetAtt EventProcessingLambdaFunction.Arn
-      Principal: sqs.amazonaws.com
-      SourceArn: !GetAtt EventsQueue.Arn
+      EventSourceArn: !GetAtt EventsQueue.Arn
 
   CognitoAccessForAmazonES:
     Type: AWS::IAM::Role
@@ -360,13 +363,8 @@ Resources:
           - Effect: Allow
             Principal:
               AWS: 
-                !Join
-                - '' 
-                - - 'arn:aws:iam::'
-                  - !Ref "AWS::AccountId"
-                  - ':'
-                  - 'role/'
-                  - !Ref AuthenticatedRole
+                - !GetAtt AuthenticatedRole.Arn
+                - !GetAtt LambdaESEventsIngesterRole.Arn
             Action: 'es:ESHttp*'
             Resource: 
               !Join
@@ -386,8 +384,6 @@ Outputs:
     Value: !GetAtt ElasticsearchDomain.Arn
   ElasticsearchDomainEndpoint:
     Value: !GetAtt ElasticsearchDomain.DomainEndpoint
-  #EventBridgeRule:
-  #  Value: !Ref ScheduledRule
   S3BucketName:
     Value: !Ref S3DLQ
   UnAuthenticatedRole:
