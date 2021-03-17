@@ -46,3 +46,8 @@ You can run these steps from your own terminal. However, for the sake of simplic
         --temporary-password <Enter temporary password> \
         --user-pool-id $(aws cloudformation describe-stacks --stack-name <Enter stack name> | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ESCognitoUserPool) 
     ```
+10. Login to Kibana endpoint with the user and temporal password. To get the Kibana endpoint, run:
+    ```
+        echo https://$(aws cloudformation describe-stacks --stack-name <Enter stack name> | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ElasticsearchDomainEndpoint)/_plugin/kibana/
+    ```
+11. Once in Kibana, create indexes from the events that have already been ingested. 
