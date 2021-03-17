@@ -6,11 +6,19 @@ Parameters:
 
   UserPoolDomain:
     Type: String
-    Description: The name for the domain of the Cognito User Pool.
+    Description: >-
+      The name for the domain of the Cognito User Pool.
 
   LambdaCodeBucket:
     Type: String
-    Description: The name of the bucket where Lambda Code resides. 
+    Description: >-
+      The name of the bucket where Lambda Code resides. 
+  
+  AWSServices:
+    Type: String
+    #AllowedPattern: '^"\d{12}"(,"\d{12}")*$|(^\s*)$'
+    Description: >-
+      List of comma-separated and double-quoted account numbers to monitor. 
 
 Resources:
 
@@ -125,9 +133,11 @@ Resources:
     DependsOn: EventsQueue
     Properties: 
       Description: "Rule to process AWS events"
-      EventPattern: 
-            source: 
-              - aws.rds,aws.ecs
+      EventPattern: !Join
+        - ''
+        - - '{"source":['
+          - !Ref AWSServices
+          - ']}'
       State: "ENABLED"
       Targets: 
         - 
