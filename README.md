@@ -7,33 +7,46 @@ You can run these steps from your own terminal. However, for the sake of simplic
 
 1. From the AWS Console, make your you are in the region where you want to deploy the solution and access AWS CloudShell service.   
 2. Revisit the policies attached to your principal(user/role) and make sure it has the AdministratorAccess policy attached. Run the following command to get the principal:
+
     ```
         aws sts get-caller-identity
     ```
+
 3. Create an S3 Bucket
+
     ```
         aws s3 mb s3://<Bucket name> --region $AWS_REGION
     ```
+
 4. Create an environment variable for your bucket name. 
+
     ```
         export BUCKET_NAME=<Enter your bucket name>
         echo "export BUCKET_NAME=${BUCKET_NAME}" >> ~/.bash_profile
     ```
+
 5. Clone this repo
+
     ```
         git clone https://github.com/herbertgoto/aws-events-to-elasticsearch.git
     ```
-6. Execute the setup code to update the workspace libraries and package and upload code to S3.
+
+6. Execute the setup code to update the workspace libraries and package and upload code to S3. Since AWS CloudShell already has libraries up to date, installation steps are commented; uncomment those if running this walkthrough from somewhere else. 
+
     ```
         chmod 700 aws-events-to-elasticsearch/setup/setup.sh 
         aws-events-to-elasticsearch/setup/setup.sh
     ```
+
 7. Create an environment variable with the code bindings for the AWS services you want to observe - __[Tutorial: Download Code Bindings for Events using the EventBridge Schema Registry](https://docs.aws.amazon.com/eventbridge/latest/userguide/eventbridge-tutorial-schema-download-binding.html)__
+    
     ```
         export AWS_SERVICES='"aws.<Enter AWS service 1 code binding>"','"aws.<Enter AWS service 1 code binding>"'
         echo "export AWS_SERVICES=${AWS_SERVICES}" >> ~/.bash_profile
     ```
+
 8. Run the AWS Cloudformation template. For this you have to define an unique __[User Pool Domain](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-assign-domain.html)__
+    
     ```
         export STACK=<Enter stack name>
         aws cloudformation deploy --template-file aws-events-to-elasticsearch/setup/solution-cfn.yaml \
@@ -41,14 +54,19 @@ You can run these steps from your own terminal. However, for the sake of simplic
         --parameter-overrides UserPoolDomain=<Enter name for the user pool domain> \
         LambdaCodeBucket=$BUCKET_NAME AWSServices=$AWS_SERVICES
     ```
+
 9. Create an AWS Cognito user with a temporal password to access Kibana. 
+    
     ```
         aws cognito-idp admin-create-user --username <Enter email address> \
         --temporary-password <Enter temporary password> \
         --user-pool-id $(aws cloudformation describe-stacks --stack-name $STACK | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ESCognitoUserPool) 
     ```
+
 10. Login to Kibana endpoint with the user and temporal password. To get the Kibana endpoint, run:
+    
     ```
         echo https://$(aws cloudformation describe-stacks --stack-name $STACK | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ElasticsearchDomainEndpoint)/_plugin/kibana/
     ```
+    
 11. Once in Kibana, create indexes from the events that have already been ingested. 
