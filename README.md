@@ -35,8 +35,9 @@ You can run these steps from your own terminal. However, for the sake of simplic
     ```
 8. Run the AWS Cloudformation template. For this you have to define an unique __[User Pool Domain](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-assign-domain.html)__
     ```
+        export STACK=<Enter stack name>
         aws cloudformation deploy --template-file aws-events-to-elasticsearch/setup/solution-cfn.yaml \
-        --stack-name <Enter stack name> --capabilities CAPABILITY_IAM \
+        --stack-name $STACK --capabilities CAPABILITY_IAM \
         --parameter-overrides UserPoolDomain=<Enter name for the user pool domain> \
         LambdaCodeBucket=$BUCKET_NAME AWSServices=$AWS_SERVICES
     ```
@@ -44,10 +45,10 @@ You can run these steps from your own terminal. However, for the sake of simplic
     ```
         aws cognito-idp admin-create-user --username <Enter email address> \
         --temporary-password <Enter temporary password> \
-        --user-pool-id $(aws cloudformation describe-stacks --stack-name <Enter stack name> | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ESCognitoUserPool) 
+        --user-pool-id $(aws cloudformation describe-stacks --stack-name $STACK | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ESCognitoUserPool) 
     ```
 10. Login to Kibana endpoint with the user and temporal password. To get the Kibana endpoint, run:
     ```
-        echo https://$(aws cloudformation describe-stacks --stack-name <Enter stack name> | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ElasticsearchDomainEndpoint)/_plugin/kibana/
+        echo https://$(aws cloudformation describe-stacks --stack-name $STACK | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ElasticsearchDomainEndpoint)/_plugin/kibana/
     ```
 11. Once in Kibana, create indexes from the events that have already been ingested. 
