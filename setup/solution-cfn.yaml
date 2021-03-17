@@ -216,7 +216,11 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:PutObject
-                Resource: !GetAtt S3DLQ.Arn
+                Resource:
+                  !Join
+                    - '' 
+                    - - !GetAtt S3DLQ.Arn
+                      - '/*'
       Path:
         Fn::Sub: /
 
