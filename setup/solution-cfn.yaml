@@ -16,9 +16,10 @@ Parameters:
   
   AWSServices:
     Type: String
-    #AllowedPattern: '^"\d{12}"(,"\d{12}")*$|(^\s*)$'
+    AllowedPattern: '^"aws.\w*"(,"aws.\w*")*$|(^\s*)$'
     Description: >-
-      List of comma-separated and double-quoted account numbers to monitor. 
+      List of comma-separated and double-quoted AWS services 
+      for which events will be ingested to Amazon Elasticsearch. 
 
 Resources:
 
