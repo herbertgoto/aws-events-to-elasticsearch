@@ -1,15 +1,11 @@
 #!/bin/bash
 
-if [ -n "$STACK" ]
+if [ -n "$BUCKET_NAME" ]
 then
     echo 'Upgrading/Installing libraries and packages'
     # Update instance and install packages
-    echo -e "[mongodb-org-3.6] \nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/amazon/2013.03/mongodb-org/3.6/x86_64/\ngpgcheck=1 \nenabled=1 \ngpgkey=https://www.mongodb.org/static/pgp/server-3.6.asc" | sudo tee /etc/yum.repos.d/mongodb-org-3.6.repo
     sudo yum update -y
     sudo yum install -y jq moreutils
-    sudo yum install -y mongodb-org-shell
-    sudo python -m pip install pymongo
-    wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
 
     # Upgrade pip
     sudo pip3 install --upgrade pip
@@ -25,33 +21,40 @@ then
     echo "export AWS_REGION=${AWS_REGION}" >> ~/.bash_profile
     aws configure set default.region ${AWS_REGION}
 
-    echo 'Getting the CloudFormation template for the Lambda streaming function'
-    # Get the AWS CloudFormation solution
-    wget https://raw.githubusercontent.com/aws-samples/amazon-documentdb-samples/master/samples/change-streams/app/change_streams_stack.yml
-
-    echo 'Copy output from CloudFormation to your workspace into file cfn-output.json'
-    # Upload Lambda Code
-    aws cloudformation describe-stacks --stack-name $STACK | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries' > cfn-output.json
-
-    echo 'Packaging and uploading streaming code to S3'
+    echo 'Packaging and uploading lambda code to send dlq messages to S3'
     # Upload Lambda Code
     cd..
-    mkdir app && cd app
-    wget https://raw.githubusercontent.com/aws-samples/amazon-documentdb-samples/master/samples/change-streams/app/lambda_function.py
-    wget https://raw.githubusercontent.com/aws-samples/amazon-documentdb-samples/master/samples/change-streams/app/requirements.txt
-    python -m venv repLambda
-    source repLambda/bin/activate
-    mv lambda_function.py repLambda/lib/python*/site-packages/
-    mv requirements.txt repLambda/lib/python*/site-packages/
-    cd repLambda/lib/python*/site-packages/
+    mkdir app-dql-to-s3
+    cp dlq-to-s3-function/* app-dql-to-s3/
+    cd app-dql-to-s3
+    python -m venv dlqLambda
+    source dlqLambda/bin/activate
+    mv lambda_function.py dlqLambda/lib/python*/site-packages/
+    mv requirements.txt dlqLambda/lib/python*/site-packages/
+    cd dlqLambda/lib/python*/site-packages/
     pip install -r requirements.txt 
     deactivate
     mv ../dist-packages/* .
-    zip -r9 repLambdaFunction.zip .
-    aws s3 cp repLambdaFunction.zip s3://$(aws cloudformation describe-stacks --stack-name $STACK | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.S3BucketName)
+    zip -r9 dlqLambdaFunction.zip .
+    aws s3 cp dlqLambdaFunction.zip s3://$BUCKET_NAME
+
+    echo 'Packaging and uploading lambda code to send dlq messages to S3'
+    # Upload Lambda Code
+    cd..
+    mkdir app-awsevents-to-aes
+    cp events-ingester-function/* app-awsevents-to-aes/
+    cd app-awsevents-to-aes
+    python -m venv eventsLambda
+    source eventsLambda/bin/activate
+    mv lambda_function.py eventsLambda/lib/python*/site-packages/
+    mv requirements.txt eventsLambda/lib/python*/site-packages/
+    cd eventsLambda/lib/python*/site-packages/
+    pip install -r requirements.txt 
+    deactivate
+    mv ../dist-packages/* .
+    zip -r9 eventsLambdaFunction.zip .
+    aws s3 cp eventsLambdaFunction.zip s3://$BUCKET_NAME
 
 else
-  echo "Remind to create an environment variable for your stack name. It is done in a step above."
+  echo "Remind to create an environment variable for your bucket name."
 fi
-
-#aws cognito-idp admin-create-user user-pool-id [userpoolid] username [mail] --temporary-password [temppass]
