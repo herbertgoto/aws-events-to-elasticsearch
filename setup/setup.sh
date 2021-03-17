@@ -4,29 +4,29 @@ if [ -n "$BUCKET_NAME" ]
 then
     echo 'Upgrading/Installing libraries and packages'
     # Update instance and install packages
-    sudo yum update -y
-    sudo yum install -y jq moreutils
+    #sudo yum update -y
+    #sudo yum install -y jq moreutils
 
-    # Upgrade pip
-    sudo pip3 install --upgrade pip
-    echo "export PATH=~/.local/bin:$PATH" >> ~/.bash_profile
-    source ~/.bash_profile
+    # Upgrade pip - CloudShell already has pip installed
+    #sudo pip3 install --upgrade pip
+    #echo "export PATH=~/.local/bin:$PATH" >> ~/.bash_profile
+    #source ~/.bash_profile
 
-    # Upgrade awscli
-    pip3 install awscli --upgrade --user
-    source ~/.bash_profile
+    # Upgrade awscli - CloudShell already has awscli installed
+    #pip3 install awscli --upgrade --user
+    #source ~/.bash_profile
 
     echo 'Packaging and uploading lambda code to send dlq messages to S3'
     # Upload Lambda Code
     mkdir app-dql-to-s3
     cp aws-events-to-elasticsearch/dlq-to-s3-function/* app-dql-to-s3/
     cd app-dql-to-s3
-    python -m venv dlqLambda
+    python3 -m venv dlqLambda
     source dlqLambda/bin/activate
     mv lambda_function.py dlqLambda/lib/python*/site-packages/
     mv requirements.txt dlqLambda/lib/python*/site-packages/
     cd dlqLambda/lib/python*/site-packages/
-    pip install -r requirements.txt 
+    pip3 install -r requirements.txt 
     deactivate
     mv ../dist-packages/* .
     zip -r9 dlqLambdaFunction.zip .
@@ -38,12 +38,12 @@ then
     mkdir app-awsevents-to-aes
     cp aws-events-to-elasticsearch/events-ingester-function/* app-awsevents-to-aes/
     cd app-awsevents-to-aes
-    python -m venv eventsLambda
+    python3 -m venv eventsLambda
     source eventsLambda/bin/activate
     mv lambda_function.py eventsLambda/lib/python*/site-packages/
     mv requirements.txt eventsLambda/lib/python*/site-packages/
     cd eventsLambda/lib/python*/site-packages/
-    pip install -r requirements.txt 
+    pip3 install -r requirements.txt 
     deactivate
     mv ../dist-packages/* .
     zip -r9 eventsLambdaFunction.zip .
