@@ -105,6 +105,8 @@ def lambda_handler(event, context):
 
         # Publish event to ES 
         for record in event['Records']:
+            logger.debug('Event payload')
+            logger.debug(record)
             doc = json.loads(record['body'])
             es_client.index(index=doc['source'],id=doc['id'],body=doc)     
 
