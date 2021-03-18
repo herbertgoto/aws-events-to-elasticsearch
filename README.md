@@ -41,7 +41,7 @@ You can run these steps from your own terminal. However, for the sake of simplic
 7. Create an environment variable with the code bindings for the AWS services you want to observe - __[Tutorial: Download Code Bindings for Events using the EventBridge Schema Registry](https://docs.aws.amazon.com/eventbridge/latest/userguide/eventbridge-tutorial-schema-download-binding.html)__
     
     ```
-        export AWS_SERVICES='"aws.<Enter AWS service 1 code binding>"','"aws.<Enter AWS service 1 code binding>"'
+        export AWS_SERVICES='"aws.<Enter AWS service 1 code binding>"','"aws.<Enter AWS service 2 code binding>"'
         echo "export AWS_SERVICES=${AWS_SERVICES}" >> ~/.bash_profile
     ```
 
