@@ -60,7 +60,7 @@ You can run these steps from your own terminal. However, for the sake of simplic
     ```
         aws cognito-idp admin-create-user --username <Enter email address> \
         --temporary-password <Enter temporary password> \
-        --user-pool-id $(aws cloudformation describe-stacks --stack-name $STACK | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ESCognitoUserPool) 
+        --user-pool-id $(aws cloudformation describe-stacks --stack-name $STACK | jq -r '[.Stacks[0].Outputs[] | {key: .OutputKey, value: .OutputValue}] | from_entries'.ESCognitoUserPoolId) 
     ```
 
 10. Login to Kibana endpoint with the user and temporal password. To get the Kibana endpoint, run:
